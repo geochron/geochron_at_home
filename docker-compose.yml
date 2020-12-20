@@ -1,0 +1,38 @@
+version: "3.9"
+   
+services:
+  db:
+    image: postgres
+    env_file:
+      - db.env
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: geochron-nginx:0.1
+    ports:
+      - 8080:80
+    volumes:
+      - ./html:/usr/share/nginx/html
+      - ./static:/static:ro
+    depends_on:
+      - geochron_at_home
+  geochron_at_home:
+    env_file:
+      - db.env
+      - geochron_at_home.env
+    image: geochron/geochron-at-home:0.1
+    command:
+      - /bin/bash
+      - -c
+      - |
+        /code/wait-for-it.sh db:5432        
+        /code/watch-for-upload.sh &
+        /code/site_init.sh
+        echo "~~~ Starting fission tracks server ~~~"
+        gunicorn -b 0.0.0.0:8000 --workers=2 geochron.wsgi 
+    volumes:
+      - ./static:/code/static
+      - ./user_upload:/code/user_upload
+    depends_on:
+      - db
